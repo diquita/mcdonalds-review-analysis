@@ -1,0 +1,7 @@
+{
+  "negative_reviews": 12517,
+  "usable_reviews": 8881,
+  "encoding_affected_negative_reviews": 1812,
+  "topics": 6,
+  "note": "NMF- und LDA-Namen sind redaktionell und vorläufig interpretierte Themen. Beide Modelle sind unabhängig; Umbenennungen bei geänderten Daten oder Parametern prüfen."
+}
