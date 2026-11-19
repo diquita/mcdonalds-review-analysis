@@ -113,3 +113,17 @@ Im Ordner `figures/` liegen **bereits erzeugte Ergebnisse** zur direkten Einsich
 ## Verwendete Software
 
 Python, pandas, NumPy, scikit-learn, Matplotlib und XlsxWriter. Die installierbaren Abhängigkeiten stehen in `requirements.txt`.
+
+
+## Ergänzung für Phase 3: Topic Coherence
+
+Für beide Themenmodelle wird der **Topic Coherence Score `c_v`** mit `gensim` berechnet.
+Die Berechnung nutzt dieselben bereinigten, tokenisierten Texte und die zehn wichtigsten **Einzelwörter** jedes Themas. Die Top-Bigramme bleiben in der sonstigen Themenübersicht enthalten, fließen aber nicht in `c_v` ein, da sie ohne zusätzliche Phrasenerkennung keine einzelnen Texttokens sind.
+
+- `coherence_scores.csv`: Score je LDA-/NMF-Thema, berücksichtigte Wörter und Modellmittelwert
+- `analyse_ergebnisse.xlsx`: neues Blatt **Coherence** sowie Score-Spalten in den Themenblättern
+- `zusammenfassung.json`: durchschnittliche Kohärenz für beide Modelle
+
+Ein höherer `c_v`-Wert zeigt stärkere Zusammenhänge der verwendeten Themenwörter unter diesen identischen Testbedingungen. Er ist keine Garantie für eine fachlich richtige Themeninterpretation. Die Modellmittelwerte sind keine statistischen Signifikanztests.
+
+Für den Abschlussbericht sollen die getrennten Tabellen `NMF Themen` und `LDA Themen` mit den identifizierten Themenbezeichnungen und Keywords dargestellt bzw. zusammengefasst werden. Bei Neuberechnung müssen die redaktionellen Themenbezeichnungen erneut geprüft werden.

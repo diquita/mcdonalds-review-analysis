@@ -13,6 +13,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, ENGLISH_STOP_WORDS
 from sklearn.decomposition import LatentDirichletAllocation, NMF
+from gensim.corpora import Dictionary
+from gensim.models import CoherenceModel
 
 CUSTOM_STOP = set('mcdonald mcdonalds mc donald donalds restaurant place location store food just really got get went one would could like didnt dont im ive thats wasnt'.split())
 STOP = sorted(set(ENGLISH_STOP_WORDS) | CUSTOM_STOP)
@@ -47,7 +49,7 @@ def clean_text(value):
     return re.sub(r'\s+', ' ', text).strip()
 
 
-def export_excel(path, topics_nmf, topics_lda, sites, metrics):
+def export_excel(path, topics_nmf, topics_lda, sites, metrics, coherence):
     """Export mit dem über PyPI installierbaren Paket XlsxWriter."""
     with pd.ExcelWriter(path, engine='xlsxwriter') as writer:
         book = writer.book
@@ -56,7 +58,7 @@ def export_excel(path, topics_nmf, topics_lda, sites, metrics):
                                   'valign': 'vcenter', 'border': 0})
         percent = book.add_format({'num_format': '0.0', 'valign': 'top'})
         for name, frame in [('NMF Themen', topics_nmf), ('LDA Themen', topics_lda),
-                            ('Standorte', sites), ('Datenqualität', metrics)]:
+                            ('Standorte', sites), ('Datenqualität', metrics), ('Coherence', coherence)]:
             frame.to_excel(writer, sheet_name=name, index=False, startrow=1, header=False)
             sheet = writer.sheets[name]
             sheet.set_row(0, 34)
@@ -74,6 +76,7 @@ def main():
     ap.add_argument('--input', default='data/McDonald_s_Reviews.csv')
     ap.add_argument('--output', default='results')
     ap.add_argument('--topics', type=int, default=6)
+    ap.add_argument('--coherence-words', type=int, default=10, help='Top-Unigramme pro Thema für c_v (Standard: 10)')
     args = ap.parse_args()
     if args.topics < 2:
         ap.error('--topics muss mindestens 2 sein')
@@ -113,6 +116,38 @@ def main():
         return [[str(names[i]) for i in weights.argsort()[::-1][:12]] for weights in model.components_]
     words_lda = get_terms(lda, bow)
     words_nmf = get_terms(nmf, tfidf)
+
+    # Vergleichbare Kohärenz: c_v für LDA und NMF auf demselben Textkorpus.
+    # Nur Unigramme: das Modell berücksichtigt auch Bigramme, die in tokenisierten
+    # Dokumenten ohne Phrasenerkennung nicht als einzelnes Token vorkommen.
+    # Nicht vorhandene oder redundante Wörter werden hier nicht künstlich ergänzt.
+    texts = [[t for t in txt.split() if t not in STOP] for txt in negative.clean]
+    dictionary = Dictionary(texts)
+    vocabulary = set(dictionary.token2id)
+
+    def coherence_for(model, vectorizer, method):
+        names = vectorizer.get_feature_names_out()
+        topics = []
+        for weights in model.components_:
+            selected = []
+            for idx in weights.argsort()[::-1]:
+                term = str(names[idx])
+                if ' ' not in term and term in vocabulary:
+                    selected.append(term)
+                if len(selected) >= args.coherence_words:
+                    break
+            topics.append(selected)
+        if any(len(t) < 2 for t in topics):
+            raise ValueError('Für die Coherence-Berechnung sind mindestens zwei gültige Begriffe pro Thema erforderlich')
+        model_score = CoherenceModel(topics=topics, texts=texts, dictionary=dictionary,
+                                     coherence='c_v', processes=1)
+        per_topic = model_score.get_coherence_per_topic()
+        return topics, [float(v) for v in per_topic], float(model_score.get_coherence())
+
+    print('Berechne Topic Coherence c_v für beide Modelle ...')
+    coherence_topics_lda, coherence_lda, coherence_mean_lda = coherence_for(lda, bow, 'LDA')
+    coherence_topics_nmf, coherence_nmf, coherence_mean_nmf = coherence_for(nmf, tfidf, 'NMF')
+    print(f'Coherence c_v: LDA={coherence_mean_lda:.4f} | NMF={coherence_mean_nmf:.4f}')
     negative['lda_topic'] = W_lda.argmax(axis=1)
     negative['nmf_topic'] = W_nmf.argmax(axis=1)
     # Bezeichnungen sind NICHT algorithmisch ermittelt, sondern redaktionell vergeben.
@@ -131,7 +166,9 @@ def main():
             for i, terms in enumerate(wordlists)
         ])
     nmf_table = topic_table('NMF', words_nmf, negative.nmf_topic)
+    nmf_table['Coherence c_v'] = [round(v, 4) for v in coherence_nmf]
     lda_table = topic_table('LDA', words_lda, negative.lda_topic)
+    lda_table['Coherence c_v'] = [round(v, 4) for v in coherence_lda]
     nmf_table.to_csv(output/'themen_nmf.csv', index=False, sep=';', encoding='utf-8-sig')
     lda_table.to_csv(output/'themen_lda.csv', index=False, sep=';', encoding='utf-8-sig')
 
@@ -166,9 +203,21 @@ def main():
         ['Verwertbare Bewertungen', len(negative)], ['Bag-of-Words-Vokabular', X_bow.shape[1]],
         ['TF-IDF-Vokabular', X_tfidf.shape[1]],
     ], columns=['Kennzahl', 'Wert'])
+    coherence_table = pd.DataFrame([
+        {'Modell': method, 'Thema': f'{prefix}{i+1}', 'Coherence c_v': round(scores[i], 4),
+         'Für Score genutzte Wörter': ', '.join(words[i]), 'Modellmittelwert c_v': round(avg, 4)}
+        for method, prefix, scores, words, avg in (
+            ('LDA', 'L', coherence_lda, coherence_topics_lda, coherence_mean_lda),
+            ('NMF', 'N', coherence_nmf, coherence_topics_nmf, coherence_mean_nmf))
+        for i in range(args.topics)
+    ])
+    coherence_table.to_csv(output/'coherence_scores.csv', sep=';', index=False, encoding='utf-8-sig')
     metrics.to_csv(output/'datenqualitaet.csv', sep=';', index=False, encoding='utf-8-sig')
     summary = {'negative_reviews': n_before, 'usable_reviews': len(negative),
                'encoding_affected_negative_reviews': corrupted, 'topics': args.topics,
+               'coherence_metric': 'c_v (Top-Unigramme; identisches tokenisiertes Textkorpus)',
+               'coherence_c_v_mean_lda': coherence_mean_lda,
+               'coherence_c_v_mean_nmf': coherence_mean_nmf,
                'note': 'NMF- und LDA-Namen sind redaktionell und vorläufig interpretierte Themen. Beide Modelle sind unabhängig; Umbenennungen bei geänderten Daten oder Parametern prüfen.'}
     (output/'zusammenfassung.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
 
@@ -198,7 +247,7 @@ def main():
         fig.savefig(output/'standortvergleich.png', dpi=180, bbox_inches='tight')
         plt.close(fig)
 
-    export_excel(output/'analyse_ergebnisse.xlsx', nmf_table, lda_table, site_table, metrics)
+    export_excel(output/'analyse_ergebnisse.xlsx', nmf_table, lda_table, site_table, metrics, coherence_table)
     print(f'Fertig. Übersicht: {output / "analyse_ergebnisse.xlsx"}')
     print('Hinweis: LDA-/NMF-Bezeichnungen sind interpretative Arbeitstitel, keine automatisch verifizierten Klassifikationen.')
 
