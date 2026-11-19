@@ -1,0 +1,13 @@
+﻿Modell;Thema;Coherence c_v;Für Score genutzte Wörter;Modellmittelwert c_v
+LDA;L1;0.671;order, drive, minutes, wrong, wait, waited, waiting, took, line, time;0.6054
+LDA;L2;0.6785;don, manager, people, said, ice, cream, customers, time, know, told;0.6054
+LDA;L3;0.6741;order, ordered, asked, meal, didn, coffee, gave, large, sauce, cheese;0.6054
+LDA;L4;0.4964;service, customer, slow, bad, horrible, rude, time, terrible, worst, staff;0.6054
+LDA;L5;0.51;worst, rude, dirty, people, employees, staff, clean, bathroom, area, customers;0.6054
+LDA;L6;0.6026;fries, cold, chicken, good, fresh, sandwich, staff, old, hard, burger;0.6054
+NMF;N1;0.5873;drive, minutes, don, people, time, wait, staff, rude, manager, long;0.5858
+NMF;N2;0.4922;service, bad, customer, horrible, rude, terrible, poor, good, dirty, manager;0.5858
+NMF;N3;0.6771;order, wrong, right, messed, times, took, missing, time, gave, correct;0.5858
+NMF;N4;0.4973;slow, service, fast, drive, orders, super, staff, friendly, extremely, poor;0.5858
+NMF;N5;0.5576;worst, ve, experience, service, rude, far, seen, visited, dirty, probably;0.5858
+NMF;N6;0.7031;cold, fries, ordered, chicken, good, nuggets, burger, old, sandwich, fresh;0.5858
